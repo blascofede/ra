@@ -50,14 +50,14 @@
         <!-- Encabezado -->
         <header class="text-center p-4 flex-shrink-0">
             <h1 class="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-cyan-300">Cámara Mágica</h1>
-            <p class="text-gray-400 text-sm">Toca una función para interactuar con tu mundo</p>
+            <p class="text-gray-400 text-sm">La IA que musicaliza, ve, traduce y transforma tu mundo</p>
         </header>
 
         <!-- Contenedor Principal de la Cámara (crece para ocupar el espacio) -->
         <main class="relative flex-grow min-h-0">
             <div class="relative w-full h-full bg-black rounded-xl shadow-2xl overflow-hidden border-2 border-gray-700">
                 <canvas id="canvas-display" class="w-full h-full object-cover"></canvas>
-                <p id="loading-message" class="absolute inset-0 flex items-center justify-center text-lg">Iniciando cámara...</p>
+                <p id="loading-message" class="absolute inset-0 flex items-center justify-center text-lg p-4 text-center">Iniciando cámara...</p>
                 
                 <div id="gemini-response-container" class="absolute bottom-0 left-0 right-0 bg-black bg-opacity-70 p-4 text-center text-lg backdrop-blur-sm transition-opacity duration-500 opacity-0 pointer-events-none">
                     <div id="gemini-text-loader" class="loader mx-auto hidden"></div>
@@ -79,6 +79,7 @@
                         <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h5M20 20v-5h-5M4 20h5v-5M20 4h-5v5M15 4h5v5M4 9V4h5" transform="rotate(90 12 12)"/>
                     </svg>
                 </button>
+                <button id="music-button" class="bg-indigo-600 text-white font-semibold px-5 py-2.5 rounded-lg shadow-lg hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-500/50 transition-all duration-300 ease-in-out transform hover:scale-105 flex-shrink-0 whitespace-nowrap">🎵 Música</button>
                 <button id="toggle-button" class="bg-blue-600 text-white font-semibold px-5 py-2.5 rounded-lg shadow-lg hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-500/50 transition-all duration-300 ease-in-out transform hover:scale-105 flex-shrink-0 whitespace-nowrap">Efecto Anaglifo</button>
                 <button id="describe-button" class="bg-purple-600 text-white font-semibold px-5 py-2.5 rounded-lg shadow-lg hover:bg-purple-700 focus:outline-none focus:ring-4 focus:ring-purple-500/50 transition-all duration-300 ease-in-out transform hover:scale-105 flex-shrink-0 whitespace-nowrap">🔊 Describir</button>
                 <button id="transform-button" class="bg-teal-600 text-white font-semibold px-5 py-2.5 rounded-lg shadow-lg hover:bg-teal-700 focus:outline-none focus:ring-4 focus:ring-teal-500/50 transition-all duration-300 ease-in-out transform hover:scale-105 flex-shrink-0 whitespace-nowrap">🎨 Transformar</button>
@@ -95,7 +96,18 @@
     <video id="video-source" playsinline autoplay></video>
     <audio id="tts-audio" class="hidden"></audio>
 
-    <!-- Modales (sin cambios estructurales) -->
+    <!-- Modales -->
+    <div id="music-modal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50 transition-opacity duration-300 opacity-0 pointer-events-none">
+        <div class="bg-gray-800 rounded-xl shadow-2xl w-full max-w-md p-6 relative transform scale-95 transition-all duration-300">
+            <div id="music-loader" class="loader mx-auto"></div>
+            <div id="music-display" class="hidden">
+                <h2 class="text-2xl font-bold mb-2 text-indigo-300">Banda Sonora Ideal</h2>
+                <p id="music-genre" class="text-lg text-gray-300 mb-4"></p>
+                <div id="music-suggestions" class="space-y-2"></div>
+                <button id="close-music-button" class="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg></button>
+            </div>
+        </div>
+    </div>
     <div id="story-modal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50 transition-opacity duration-300 opacity-0 pointer-events-none">
         <div class="bg-gray-800 rounded-xl shadow-2xl w-full max-w-2xl p-6 relative transform scale-95 transition-all duration-300">
             <div id="story-loader" class="loader mx-auto"></div>
@@ -170,6 +182,7 @@
             
             const buttons = {
                 switchCamera: document.getElementById('switch-camera-button'),
+                music: document.getElementById('music-button'),
                 toggle: document.getElementById('toggle-button'),
                 describe: document.getElementById('describe-button'),
                 transform: document.getElementById('transform-button'),
@@ -188,6 +201,7 @@
             const geminiImageLoader = document.getElementById('gemini-image-loader');
             const geminiGeneratedImage = document.getElementById('gemini-generated-image');
 
+            const musicModal = { container: document.getElementById('music-modal'), loader: document.getElementById('music-loader'), display: document.getElementById('music-display'), genre: document.getElementById('music-genre'), suggestions: document.getElementById('music-suggestions'), closeButton: document.getElementById('close-music-button') };
             const storyModal = { container: document.getElementById('story-modal'), loader: document.getElementById('story-loader'), display: document.getElementById('story-display'), text: document.getElementById('story-text'), closeButton: document.getElementById('close-story-button') };
             const recipeModal = { container: document.getElementById('recipe-modal'), loader: document.getElementById('recipe-loader'), display: document.getElementById('recipe-display'), text: document.getElementById('recipe-text'), closeButton: document.getElementById('close-recipe-button') };
             const identifyModal = { container: document.getElementById('identify-modal'), loader: document.getElementById('identify-loader'), display: document.getElementById('identify-display'), title: document.getElementById('identify-title'), text: document.getElementById('identify-text'), closeButton: document.getElementById('close-identify-button') };
@@ -201,80 +215,103 @@
             let videoDevices = [];
             let currentDeviceIndex = 0;
 
-            async function startCamera(deviceId) {
+            async function startCamera(constraints) {
                 if (currentStream) {
                     currentStream.getTracks().forEach(track => track.stop());
                 }
-                const constraints = {
-                    video: {
-                        deviceId: deviceId ? { exact: deviceId } : undefined,
-                        width: { ideal: 1280 },
-                        height: { ideal: 720 }
-                    },
-                    audio: false
-                };
                 try {
                     const stream = await navigator.mediaDevices.getUserMedia(constraints);
                     video.srcObject = stream;
                     currentStream = stream;
                     loadingMessage.style.display = 'none';
                 } catch (err) {
-                    console.error("Error al acceder a la cámara: ", err);
-                    loadingMessage.textContent = "Error al acceder a la cámara.";
+                    console.error("Error al iniciar stream con constraints:", constraints, err);
+                    throw err; // Re-lanza el error para ser capturado por el inicializador
                 }
             }
 
             async function initializeCameraSystem() {
+                if (!('mediaDevices' in navigator && 'getUserMedia' in navigator.mediaDevices)) {
+                    loadingMessage.textContent = "Tu navegador no soporta el acceso a la cámara.";
+                    return;
+                }
+
                 try {
-                    // Primero, se necesita permiso para poder leer las etiquetas de los dispositivos.
-                    const tempStream = await navigator.mediaDevices.getUserMedia({ video: true });
-                    
+                    // Iniciar con una restricción de modo de cámara genérica, es más fiable.
+                    const initialConstraints = { video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } } };
+                    await startCamera(initialConstraints);
+
+                    // Ahora que tenemos permiso y un stream, podemos obtener las etiquetas correctas de los dispositivos.
                     const devices = await navigator.mediaDevices.enumerateDevices();
                     videoDevices = devices.filter(device => device.kind === 'videoinput');
-                    
-                    if (videoDevices.length === 0) throw new Error("No se encontraron cámaras.");
 
-                    // Intentar encontrar la cámara frontal para empezar
-                    let initialIndex = videoDevices.findIndex(device => device.label.toLowerCase().includes('front'));
-                    currentDeviceIndex = initialIndex !== -1 ? initialIndex : 0;
-                    
-                    // Detener el stream temporal
-                    tempStream.getTracks().forEach(track => track.stop());
+                    if (videoDevices.length === 0) {
+                        throw new Error("No se encontraron dispositivos de video.");
+                    }
 
-                    // Iniciar con el dispositivo correcto
-                    await startCamera(videoDevices[currentDeviceIndex].deviceId);
+                    // Sincronizar el currentDeviceIndex con el stream que realmente está corriendo.
+                    const currentTrack = currentStream.getVideoTracks()[0];
+                    const currentSettings = currentTrack.getSettings();
+                    const currentDeviceId = currentSettings.deviceId;
+                    currentDeviceIndex = videoDevices.findIndex(device => device.deviceId === currentDeviceId);
+                    if(currentDeviceIndex === -1) currentDeviceIndex = 0;
+
                 } catch (err) {
-                    console.error("Error inicializando el sistema de cámara:", err);
-                    loadingMessage.textContent = "No se pudo iniciar la cámara.";
+                    console.error("Error detallado al inicializar:", err.name, err.message);
+                    let userMessage = "No se pudo iniciar la cámara. ";
+                    if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
+                        userMessage += "Por favor, concede el permiso para usar la cámara.";
+                    } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
+                        userMessage += "No se encontró ninguna cámara conectada.";
+                    } else if (err.name === "NotReadableError" || err.name === "TrackStartError") {
+                        userMessage += "La cámara ya está en uso por otra aplicación.";
+                    } else {
+                        userMessage += `Error inesperado: ${err.name}`;
+                    }
+                    loadingMessage.textContent = userMessage;
                 }
             }
             
             function switchCamera() {
                 if (videoDevices.length > 1) {
                     currentDeviceIndex = (currentDeviceIndex + 1) % videoDevices.length;
-                    startCamera(videoDevices[currentDeviceIndex].deviceId);
+                    const deviceId = videoDevices[currentDeviceIndex].deviceId;
+                    const constraints = { video: { deviceId: { exact: deviceId }, width: { ideal: 1280 }, height: { ideal: 720 } } };
+                    startCamera(constraints).catch(err => {
+                        console.error(`No se pudo cambiar a la cámara ${deviceId}:`, err);
+                    });
                 }
             }
 
             function drawFrame() { 
-                if (video.paused || video.ended) return; 
+                if (video.paused || video.ended || !currentStream) return; 
                 if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) { canvas.width = video.videoWidth; canvas.height = video.videoHeight; } 
                 ctx.save(); 
-                // Voltear la imagen si es una cámara frontal (selfie)
-                if (videoDevices[currentDeviceIndex] && videoDevices[currentDeviceIndex].label.toLowerCase().includes('front')) {
-                    ctx.translate(video.videoWidth, 0); ctx.scale(-1, 1); 
+                
+                const track = currentStream.getVideoTracks()[0];
+                const settings = track ? track.getSettings() : {};
+                
+                if (settings.facingMode === 'user') {
+                    ctx.translate(video.videoWidth, 0); 
+                    ctx.scale(-1, 1); 
                 }
+
                 effectEnabled ? applyAnaglyphEffect() : ctx.drawImage(video, 0, 0, canvas.width, canvas.height); 
                 ctx.restore(); 
                 animationFrameId = requestAnimationFrame(drawFrame); 
             }
             function applyAnaglyphEffect() { const width = canvas.width, height = canvas.height, offset = 8; ctx.drawImage(video, 0, 0, width, height); const imageData = ctx.getImageData(0, 0, width, height); const data = imageData.data; const redData = new Uint8ClampedArray(data); for (let i = 0; i < data.length; i += 4) { data[i] = 0; redData[i + 1] = 0; redData[i + 2] = 0; } ctx.clearRect(0, 0, width, height); ctx.putImageData(new ImageData(data, width, height), -offset, 0); ctx.globalCompositeOperation = 'lighter'; ctx.putImageData(new ImageData(redData, width, height), offset, 0); }
+            
             function captureFrameAsBase64() {
                 const tempCanvas = document.createElement('canvas');
                 const tempCtx = tempCanvas.getContext('2d');
                 tempCanvas.width = video.videoWidth;
                 tempCanvas.height = video.videoHeight;
-                if (videoDevices[currentDeviceIndex] && videoDevices[currentDeviceIndex].label.toLowerCase().includes('front')) {
+
+                const track = currentStream.getVideoTracks()[0];
+                const settings = track ? track.getSettings() : {};
+
+                if (settings.facingMode === 'user') {
                     tempCtx.translate(video.videoWidth, 0);
                     tempCtx.scale(-1, 1);
                 }
@@ -299,6 +336,18 @@
                 } 
             }
             
+            async function recommendMusic() {
+                openModal(musicModal); buttons.music.disabled = true;
+                const payload = {
+                    contents: [{ parts: [{ text: "Actúa como un DJ y experto musical. Analiza el ambiente, el lugar y la emoción de esta imagen. Recomienda un género musical que encaje perfectamente. Además, sugiere 2 o 3 artistas o canciones representativas. Responde en español." }, { inlineData: { mimeType: "image/jpeg", data: captureFrameAsBase64() } }] }],
+                    generationConfig: { responseMimeType: "application/json", responseSchema: { type: "OBJECT", properties: { "genero": { "type": "STRING" }, "sugerencias": { "type": "ARRAY", "items": { "type": "STRING" } } }, required: ["genero", "sugerencias"] } }
+                };
+                const result = await callGeminiAPI({ endpoint: 'generateContent', payload });
+                const jsonText = result?.candidates?.[0]?.content?.parts?.[0]?.text;
+                const content = jsonText ? JSON.parse(jsonText) : { genero: "Error", sugerencias: ["No se pudo obtener una recomendación."] };
+                showMusicRecommendation(content);
+                buttons.music.disabled = false;
+            }
             async function describeScene() { geminiTextLoader.style.display = 'block'; geminiText.textContent = ''; geminiContainer.classList.remove('opacity-0'); buttons.describe.disabled = true; const payload = { contents: [{ parts: [{ text: "Describe esta escena de forma breve y creativa en español." }, { inlineData: { mimeType: "image/jpeg", data: captureFrameAsBase64() } }] }] }; const result = await callGeminiAPI({ endpoint: 'generateContent', payload }); const description = result?.candidates?.[0]?.content?.parts?.[0]?.text || "No se pudo obtener una descripción."; geminiText.textContent = description; geminiTextLoader.style.display = 'none'; if (description && !description.startsWith("No se pudo")) { const ttsPayload = { contents: [{ parts: [{ text: description }] }], generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "Aoede" } } } }, model: "gemini-2.5-flash-preview-tts" }; const ttsResult = await callGeminiAPI({ endpoint: 'generateContent', payload: ttsPayload, model: 'gemini-2.5-flash-preview-tts' }); const audioPart = ttsResult?.candidates?.[0]?.content?.parts?.[0]; if (audioPart?.inlineData?.data) { const {data, mimeType} = audioPart.inlineData; const sampleRate = parseInt(mimeType.match(/rate=(\d+)/)[1], 10); const pcmBuffer = base64ToArrayBuffer(data); const pcm16 = new Int16Array(pcmBuffer); const wavBlob = pcmToWav(pcm16, sampleRate); audioPlayer.src = URL.createObjectURL(wavBlob); audioPlayer.play(); } } setTimeout(() => { geminiContainer.classList.add('opacity-0'); buttons.describe.disabled = false; }, 7000); }
             async function transformStyle() { geminiGeneratedImage.src = ""; geminiImageLoader.style.display = 'block'; geminiImageContainer.classList.remove('opacity-0'); buttons.transform.disabled = true; const payload = { contents: [{ parts: [{ text: "Transform this image into a vibrant, colorful, and expressive watercolor painting." }, { inlineData: { mimeType: "image/jpeg", data: captureFrameAsBase64() } }] }], generationConfig: { responseModalities: ['IMAGE'] } }; const result = await callGeminiAPI({ endpoint: 'generateContent', payload, model: 'gemini-2.5-flash-image-preview' }); const imageData = result?.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data; geminiImageLoader.style.display = 'none'; if (imageData) { geminiGeneratedImage.src = `data:image/png;base64,${imageData}`; } else { geminiText.textContent = "No se pudo generar la imagen."; geminiContainer.classList.remove('opacity-0'); } setTimeout(() => { geminiImageContainer.classList.add('opacity-0'); buttons.transform.disabled = false; }, 8000); }
             async function createStory() { openModal(storyModal); buttons.story.disabled = true; const payload = { contents: [{ parts: [{ text: "Escribe el comienzo de una historia de misterio o fantasía basada en esta imagen, en no más de 150 palabras. La historia debe ser en español, intrigante y creativa." }, { inlineData: { mimeType: "image/jpeg", data: captureFrameAsBase64() } }] }] }; const result = await callGeminiAPI({ endpoint: 'generateContent', payload }); const story = result?.candidates?.[0]?.content?.parts?.[0]?.text || "No se pudo generar una historia."; showModalContent(storyModal, story); buttons.story.disabled = false; }
@@ -321,6 +370,7 @@
 
             function openModal(modal) { modal.container.classList.remove('opacity-0', 'pointer-events-none'); modal.container.firstElementChild.classList.remove('scale-95'); modal.loader.style.display = 'block'; modal.display.style.display = 'none'; }
             function showModalContent(modal, content) { if (modal.title) { modal.title.textContent = content.title; modal.text.textContent = content.description; } else { modal.text.textContent = content; } modal.loader.style.display = 'none'; modal.display.style.display = 'block'; }
+            function showMusicRecommendation(content) { const modal = musicModal; modal.genre.textContent = content.genero; modal.suggestions.innerHTML = ''; if (Array.isArray(content.sugerencias)) { content.sugerencias.forEach(sug => { const sugHTML = `<div class="bg-gray-700/50 p-2 rounded-lg text-center"><p class="text-white">${sug}</p></div>`; modal.suggestions.innerHTML += sugHTML; }); } modal.loader.style.display = 'none'; modal.display.style.display = 'block'; }
             function showColorPalette(colors) { const modal = colorPaletteModal; const container = modal.paletteContainer; container.innerHTML = ''; if (Array.isArray(colors)) { colors.forEach(color => { const swatchHTML = `<div class="flex items-center gap-4 p-3 rounded-lg bg-gray-700/50"><div class="w-12 h-12 rounded-md border-2 border-gray-500 shadow-inner" style="background-color: ${color.hex};"></div><div class="text-left"><p class="font-semibold text-white">${color.name}</p><p class="text-gray-400 font-mono text-sm">${color.hex}</p></div></div>`; container.innerHTML += swatchHTML; }); } else { container.innerHTML = `<p class="text-gray-400">No se pudo generar la paleta de colores.</p>`; } modal.loader.style.display = 'none'; modal.display.style.display = 'block'; }
             function showTranslation(content) { const modal = translateModal; modal.detectedLanguage.textContent = content.detectedLanguage; modal.text.textContent = content.translation; modal.loader.style.display = 'none'; modal.display.style.display = 'block'; }
             function closeModal(modal) { modal.container.classList.add('opacity-0', 'pointer-events-none'); modal.container.firstElementChild.classList.add('scale-95'); }
@@ -328,6 +378,7 @@
             function pcmToWav(pcm, sampleRate) { const b = new ArrayBuffer(44 + pcm.byteLength); const v = new DataView(b); const s = (s,o,v) => { for (let i=0;i<s.length;i++,o++) v.setUint8(o,s.charCodeAt(i)); }; s('RIFF',0,v); v.setUint32(4,36+pcm.byteLength,true); s('WAVE',8,v); s('fmt ',12,v); v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,1,true); v.setUint32(24,sampleRate,true); v.setUint32(28,sampleRate*2,true); v.setUint16(32,2,true); v.setUint16(34,16,true); s('data',36,v); v.setUint32(40,pcm.byteLength,true); new Int16Array(b,44).set(pcm); return new Blob([b],{type:'audio/wav'}); }
             
             buttons.switchCamera.addEventListener('click', switchCamera);
+            buttons.music.addEventListener('click', recommendMusic);
             buttons.toggle.addEventListener('click', () => { effectEnabled = !effectEnabled; buttons.toggle.textContent = effectEnabled ? 'Efecto Activado' : 'Efecto Anaglifo'; buttons.toggle.classList.toggle('bg-blue-600'); buttons.toggle.classList.toggle('bg-red-600'); });
             buttons.describe.addEventListener('click', describeScene);
             buttons.transform.addEventListener('click', transformStyle);
@@ -338,6 +389,7 @@
             buttons.colorPalette.addEventListener('click', extractColorPalette);
             buttons.translate.addEventListener('click', translateText);
             
+            musicModal.closeButton.addEventListener('click', () => closeModal(musicModal));
             storyModal.closeButton.addEventListener('click', () => closeModal(storyModal));
             recipeModal.closeButton.addEventListener('click', () => closeModal(recipeModal));
             identifyModal.closeButton.addEventListener('click', () => closeModal(identifyModal));
