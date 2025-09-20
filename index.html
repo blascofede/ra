@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cámara Mágica con Gemini</title>
+    <!-- Incluyendo Tailwind CSS para un diseño moderno y responsivo -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        #video-source {
+            display: none;
+        }
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #6366f1; /* Indigo */
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        /* Estilo para scrollbar en modales */
+        .modal-scrollbar::-webkit-scrollbar {
+            width: 8px;
+        }
+        .modal-scrollbar::-webkit-scrollbar-track {
+            background: #2d3748; /* gray-800 */
+        }
+        .modal-scrollbar::-webkit-scrollbar-thumb {
+            background: #4a5568; /* gray-600 */
+            border-radius: 4px;
+        }
+        .modal-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #718096; /* gray-500 */
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white flex flex-col items-center justify-center min-h-screen p-4 antialiased">
+
+    <div class="w-full max-w-7xl text-center">
+        <h1 class="text-4xl md:text-5xl font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-cyan-300">Cámara Mágica con Gemini</h1>
+        <p class="text-gray-400 mb-6">La IA que ve, traduce, transforma, habla, imagina, cocina, identifica, asesora y extrae colores de tu mundo.</p>
+
+        <!-- Contenedor para la visualización de la cámara -->
+        <div class="relative w-full aspect-video bg-black rounded-xl shadow-2xl overflow-hidden border-2 border-gray-700">
+            <canvas id="canvas-display" class="w-full h-full"></canvas>
+            <p id="loading-message" class="absolute inset-0 flex items-center justify-center text-lg">Iniciando cámara...</p>
+            
+            <div id="gemini-response-container" class="absolute bottom-0 left-0 right-0 bg-black bg-opacity-70 p-4 text-center text-lg backdrop-blur-sm transition-opacity duration-500 opacity-0 pointer-events-none">
+                <div id="gemini-text-loader" class="loader mx-auto hidden"></div>
+                <p id="gemini-response-text"></p>
+            </div>
+            
+            <div id="gemini-image-container" class="absolute inset-0 bg-black bg-opacity-80 flex items-center justify-center transition-opacity duration-500 opacity-0 pointer-events-none">
+                <div id="gemini-image-loader" class="loader hidden"></div>
+                <img id="gemini-generated-image" class="max-w-full max-h-full rounded-lg shadow-lg" src="" alt="Imagen Generada por IA">
+            </div>
+        </div>
+
+        <!-- Controles -->
+        <div class="mt-6 flex flex-wrap justify-center items-center gap-3">
+            <button id="toggle-button" class="bg-blue-600 text-white font-semibold px-5 py-2.5 rounded-lg shadow-lg hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-500/50 transition-all duration-300 ease-in-out transform hover:scale-105">Efecto Anaglifo</button>
+            <button id="describe-button" class="bg-purple-600 text-white font-semibold px-5 py-2.5 rounded-lg shadow-lg hover:bg-purple-700 focus:outline-none focus:ring-4 focus:ring-purple-500/50 transition-all duration-300 ease-in-out transform hover:scale-105">🔊 Describir</button>
+            <button id="transform-button" class="bg-teal-600 text-white font-semibold px-5 py-2.5 rounded-lg shadow-lg hover:bg-teal-700 focus:outline-none focus:ring-4 focus:ring-teal-500/50 transition-all duration-300 ease-in-out transform hover:scale-105">🎨 Transformar</button>
+            <button id="story-button" class="bg-amber-600 text-white font-semibold px-5 py-2.5 rounded-lg shadow-lg hover:bg-amber-700 focus:outline-none focus:ring-4 focus:ring-amber-500/50 transition-all duration-300 ease-in-out transform hover:scale-105">✍️ Crear Historia</button>
+            <button id="recipe-button" class="bg-green-600 text-white font-semibold px-5 py-2.5 rounded-lg shadow-lg hover:bg-green-700 focus:outline-none focus:ring-4 focus:ring-green-500/50 transition-all duration-300 ease-in-out transform hover:scale-105">🍲 Receta</button>
+            <button id="identify-button" class="bg-slate-600 text-white font-semibold px-5 py-2.5 rounded-lg shadow-lg hover:bg-slate-700 focus:outline-none focus:ring-4 focus:ring-slate-500/50 transition-all duration-300 ease-in-out transform hover:scale-105">🔍 Identificar</button>
+            <button id="design-button" class="bg-pink-600 text-white font-semibold px-5 py-2.5 rounded-lg shadow-lg hover:bg-pink-700 focus:outline-none focus:ring-4 focus:ring-pink-500/50 transition-all duration-300 ease-in-out transform hover:scale-105">🏡 Asesorar</button>
+            <button id="color-palette-button" class="bg-orange-600 text-white font-semibold px-5 py-2.5 rounded-lg shadow-lg hover:bg-orange-700 focus:outline-none focus:ring-4 focus:ring-orange-500/50 transition-all duration-300 ease-in-out transform hover:scale-105">🌈 Extraer Colores</button>
+            <button id="translate-button" class="bg-red-600 text-white font-semibold px-5 py-2.5 rounded-lg shadow-lg hover:bg-red-700 focus:outline-none focus:ring-4 focus:ring-red-500/50 transition-all duration-300 ease-in-out transform hover:scale-105">🌐 Traducir Texto</button>
+        </div>
+    </div>
+
+    <video id="video-source" playsinline autoplay></video>
+    <audio id="tts-audio" class="hidden"></audio>
+
+    <!-- Modales -->
+    <div id="story-modal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50 transition-opacity duration-300 opacity-0 pointer-events-none">
+        <div class="bg-gray-800 rounded-xl shadow-2xl w-full max-w-2xl p-6 relative transform scale-95 transition-all duration-300">
+            <div id="story-loader" class="loader mx-auto"></div>
+            <div id="story-display" class="hidden">
+                <h2 class="text-2xl font-bold mb-4 text-amber-300">Un Comienzo Inesperado...</h2>
+                <p id="story-text" class="text-gray-300 whitespace-pre-wrap max-h-[60vh] overflow-y-auto pr-2 modal-scrollbar"></p>
+                <button id="close-story-button" class="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg></button>
+            </div>
+        </div>
+    </div>
+    <div id="recipe-modal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50 transition-opacity duration-300 opacity-0 pointer-events-none">
+        <div class="bg-gray-800 rounded-xl shadow-2xl w-full max-w-2xl p-6 relative transform scale-95 transition-all duration-300">
+            <div id="recipe-loader" class="loader mx-auto"></div>
+            <div id="recipe-display" class="hidden">
+                <h2 class="text-2xl font-bold mb-4 text-green-300">Una Deliciosa Idea...</h2>
+                <p id="recipe-text" class="text-gray-300 whitespace-pre-wrap max-h-[60vh] overflow-y-auto pr-2 modal-scrollbar"></p>
+                <button id="close-recipe-button" class="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg></button>
+            </div>
+        </div>
+    </div>
+    <div id="identify-modal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50 transition-opacity duration-300 opacity-0 pointer-events-none">
+        <div class="bg-gray-800 rounded-xl shadow-2xl w-full max-w-2xl p-6 relative transform scale-95 transition-all duration-300">
+            <div id="identify-loader" class="loader mx-auto"></div>
+            <div id="identify-display" class="hidden">
+                <h2 id="identify-title" class="text-2xl font-bold mb-4 text-slate-300"></h2>
+                <p id="identify-text" class="text-gray-300 whitespace-pre-wrap max-h-[60vh] overflow-y-auto pr-2 modal-scrollbar"></p>
+                <button id="close-identify-button" class="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg></button>
+            </div>
+        </div>
+    </div>
+    <div id="design-modal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50 transition-opacity duration-300 opacity-0 pointer-events-none">
+        <div class="bg-gray-800 rounded-xl shadow-2xl w-full max-w-2xl p-6 relative transform scale-95 transition-all duration-300">
+            <div id="design-loader" class="loader mx-auto"></div>
+            <div id="design-display" class="hidden">
+                <h2 class="text-2xl font-bold mb-4 text-pink-300">Consejos de Diseño...</h2>
+                <p id="design-text" class="text-gray-300 whitespace-pre-wrap max-h-[60vh] overflow-y-auto pr-2 modal-scrollbar"></p>
+                <button id="close-design-button" class="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg></button>
+            </div>
+        </div>
+    </div>
+    <div id="color-palette-modal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50 transition-opacity duration-300 opacity-0 pointer-events-none">
+        <div class="bg-gray-800 rounded-xl shadow-2xl w-full max-w-md p-6 relative transform scale-95 transition-all duration-300">
+            <div id="color-palette-loader" class="loader mx-auto"></div>
+            <div id="color-palette-display" class="hidden">
+                <h2 class="text-2xl font-bold mb-4 text-orange-300">Paleta de Colores</h2>
+                <div id="color-palette-container" class="space-y-3"></div>
+                <button id="close-color-palette-button" class="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg></button>
+            </div>
+        </div>
+    </div>
+    <div id="translate-modal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50 transition-opacity duration-300 opacity-0 pointer-events-none">
+        <div class="bg-gray-800 rounded-xl shadow-2xl w-full max-w-2xl p-6 relative transform scale-95 transition-all duration-300">
+            <div id="translate-loader" class="loader mx-auto"></div>
+            <div id="translate-display" class="hidden">
+                <h2 class="text-2xl font-bold mb-4 text-red-300">Traducción Instantánea</h2>
+                <div class="bg-gray-900 p-3 rounded-lg mb-3">
+                    <p class="text-sm text-gray-400">Idioma Detectado: <span id="detected-language" class="font-semibold text-gray-200"></span></p>
+                </div>
+                <p id="translate-text" class="text-gray-300 whitespace-pre-wrap max-h-[50vh] overflow-y-auto pr-2 modal-scrollbar"></p>
+                <button id="close-translate-button" class="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg></button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const video = document.getElementById('video-source');
+            const canvas = document.getElementById('canvas-display');
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
+            const loadingMessage = document.getElementById('loading-message');
+            const audioPlayer = document.getElementById('tts-audio');
+            
+            const buttons = {
+                toggle: document.getElementById('toggle-button'),
+                describe: document.getElementById('describe-button'),
+                transform: document.getElementById('transform-button'),
+                story: document.getElementById('story-button'),
+                recipe: document.getElementById('recipe-button'),
+                identify: document.getElementById('identify-button'),
+                design: document.getElementById('design-button'),
+                colorPalette: document.getElementById('color-palette-button'),
+                translate: document.getElementById('translate-button'),
+            };
+
+            const geminiContainer = document.getElementById('gemini-response-container');
+            const geminiTextLoader = document.getElementById('gemini-text-loader');
+            const geminiText = document.getElementById('gemini-response-text');
+            const geminiImageContainer = document.getElementById('gemini-image-container');
+            const geminiImageLoader = document.getElementById('gemini-image-loader');
+            const geminiGeneratedImage = document.getElementById('gemini-generated-image');
+
+            const storyModal = { container: document.getElementById('story-modal'), loader: document.getElementById('story-loader'), display: document.getElementById('story-display'), text: document.getElementById('story-text'), closeButton: document.getElementById('close-story-button') };
+            const recipeModal = { container: document.getElementById('recipe-modal'), loader: document.getElementById('recipe-loader'), display: document.getElementById('recipe-display'), text: document.getElementById('recipe-text'), closeButton: document.getElementById('close-recipe-button') };
+            const identifyModal = { container: document.getElementById('identify-modal'), loader: document.getElementById('identify-loader'), display: document.getElementById('identify-display'), title: document.getElementById('identify-title'), text: document.getElementById('identify-text'), closeButton: document.getElementById('close-identify-button') };
+            const designModal = { container: document.getElementById('design-modal'), loader: document.getElementById('design-loader'), display: document.getElementById('design-display'), text: document.getElementById('design-text'), closeButton: document.getElementById('close-design-button') };
+            const colorPaletteModal = { container: document.getElementById('color-palette-modal'), loader: document.getElementById('color-palette-loader'), display: document.getElementById('color-palette-display'), paletteContainer: document.getElementById('color-palette-container'), closeButton: document.getElementById('close-color-palette-button') };
+            const translateModal = { container: document.getElementById('translate-modal'), loader: document.getElementById('translate-loader'), display: document.getElementById('translate-display'), detectedLanguage: document.getElementById('detected-language'), text: document.getElementById('translate-text'), closeButton: document.getElementById('close-translate-button') };
+
+            let effectEnabled = false;
+            let animationFrameId;
+
+            async function setupCamera() { try { const stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' }, audio: false }); video.srcObject = stream; loadingMessage.style.display = 'none'; } catch (err) { console.error("Error al acceder a la cámara: ", err); loadingMessage.textContent = "Error al acceder a la cámara. Revisa los permisos."; } }
+            function drawFrame() { if (video.paused || video.ended || canvas.width === 0) return; if (canvas.width !== video.videoWidth) { canvas.width = video.videoWidth; canvas.height = video.videoHeight; } ctx.save(); effectEnabled ? applyAnaglyphEffect() : ctx.drawImage(video, 0, 0, canvas.width, canvas.height); ctx.restore(); animationFrameId = requestAnimationFrame(drawFrame); }
+            function applyAnaglyphEffect() { const width = canvas.width, height = canvas.height, offset = 8; ctx.drawImage(video, 0, 0, width, height); const imageData = ctx.getImageData(0, 0, width, height); const data = imageData.data; const redData = new Uint8ClampedArray(data); for (let i = 0; i < data.length; i += 4) { data[i] = 0; redData[i + 1] = 0; redData[i + 2] = 0; } ctx.clearRect(0, 0, width, height); ctx.putImageData(new ImageData(data, width, height), -offset, 0); ctx.globalCompositeOperation = 'lighter'; ctx.putImageData(new ImageData(redData, width, height), offset, 0); }
+            function captureFrameAsBase64() { ctx.drawImage(video, 0, 0, canvas.width, canvas.height); return canvas.toDataURL('image/jpeg').split(',')[1]; }
+            async function callGeminiAPI({ endpoint, payload, model = 'gemini-2.5-flash-preview-05-20' }) { const apiKey = ""; const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:${endpoint}?key=${apiKey}`; try { const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); if (!response.ok) throw new Error(`Error en la API: ${response.status} ${response.statusText}`); return await response.json(); } catch (error) { console.error(`Error al llamar a la API de Gemini (${model}):`, error); return null; } }
+            
+            async function describeScene() { geminiTextLoader.style.display = 'block'; geminiText.textContent = ''; geminiContainer.classList.remove('opacity-0'); buttons.describe.disabled = true; const payload = { contents: [{ parts: [{ text: "Describe esta escena de forma breve y creativa en español." }, { inlineData: { mimeType: "image/jpeg", data: captureFrameAsBase64() } }] }] }; const result = await callGeminiAPI({ endpoint: 'generateContent', payload }); const description = result?.candidates?.[0]?.content?.parts?.[0]?.text || "No se pudo obtener una descripción."; geminiText.textContent = description; geminiTextLoader.style.display = 'none'; if (description && !description.startsWith("No se pudo")) { const ttsPayload = { contents: [{ parts: [{ text: description }] }], generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "Aoede" } } } }, model: "gemini-2.5-flash-preview-tts" }; const ttsResult = await callGeminiAPI({ endpoint: 'generateContent', payload: ttsPayload, model: 'gemini-2.5-flash-preview-tts' }); const audioPart = ttsResult?.candidates?.[0]?.content?.parts?.[0]; if (audioPart?.inlineData?.data) { const {data, mimeType} = audioPart.inlineData; const sampleRate = parseInt(mimeType.match(/rate=(\d+)/)[1], 10); const pcmBuffer = base64ToArrayBuffer(data); const pcm16 = new Int16Array(pcmBuffer); const wavBlob = pcmToWav(pcm16, sampleRate); audioPlayer.src = URL.createObjectURL(wavBlob); audioPlayer.play(); } } setTimeout(() => { geminiContainer.classList.add('opacity-0'); buttons.describe.disabled = false; }, 7000); }
+            async function transformStyle() { geminiGeneratedImage.src = ""; geminiImageLoader.style.display = 'block'; geminiImageContainer.classList.remove('opacity-0'); buttons.transform.disabled = true; const payload = { contents: [{ parts: [{ text: "Transform this image into a vibrant, colorful, and expressive watercolor painting." }, { inlineData: { mimeType: "image/jpeg", data: captureFrameAsBase64() } }] }], generationConfig: { responseModalities: ['IMAGE'] } }; const result = await callGeminiAPI({ endpoint: 'generateContent', payload, model: 'gemini-2.5-flash-image-preview' }); const imageData = result?.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data; geminiImageLoader.style.display = 'none'; if (imageData) { geminiGeneratedImage.src = `data:image/png;base64,${imageData}`; } else { geminiText.textContent = "No se pudo generar la imagen."; geminiContainer.classList.remove('opacity-0'); } setTimeout(() => { geminiImageContainer.classList.add('opacity-0'); buttons.transform.disabled = false; }, 8000); }
+            async function createStory() { openModal(storyModal); buttons.story.disabled = true; const payload = { contents: [{ parts: [{ text: "Escribe el comienzo de una historia de misterio o fantasía basada en esta imagen, en no más de 150 palabras. La historia debe ser en español, intrigante y creativa." }, { inlineData: { mimeType: "image/jpeg", data: captureFrameAsBase64() } }] }] }; const result = await callGeminiAPI({ endpoint: 'generateContent', payload }); const story = result?.candidates?.[0]?.content?.parts?.[0]?.text || "No se pudo generar una historia."; showModalContent(storyModal, story); buttons.story.disabled = false; }
+            async function suggestRecipe() { openModal(recipeModal); buttons.recipe.disabled = true; const payload = { contents: [{ parts: [{ text: "Actúa como un chef. Identifica los ingredientes en la imagen y sugiere una receta simple. Responde en español y formatea la respuesta con un título, ingredientes y pasos." }, { inlineData: { mimeType: "image/jpeg", data: captureFrameAsBase64() } }] }] }; const result = await callGeminiAPI({ endpoint: 'generateContent', payload }); const recipe = result?.candidates?.[0]?.content?.parts?.[0]?.text || "No se pudo generar una receta."; showModalContent(recipeModal, recipe); buttons.recipe.disabled = false; }
+            async function identifyObject() { openModal(identifyModal); buttons.identify.disabled = true; const payload = { contents: [{ parts: [{ text: "Identify the main subject in this image. Provide a title (its name) and a short, interesting description. Use your search tool for accuracy. Respond in Spanish." }, { inlineData: { mimeType: "image/jpeg", data: captureFrameAsBase64() } }] }], tools: [{ "google_search": {} }], generationConfig: { responseMimeType: "application/json", responseSchema: { type: "OBJECT", properties: { "title": { "type": "STRING" }, "description": { "type": "STRING" } }, required: ["title", "description"] } } }; const result = await callGeminiAPI({ endpoint: 'generateContent', payload }); const jsonText = result?.candidates?.[0]?.content?.parts?.[0]?.text; const content = jsonText ? JSON.parse(jsonText) : { title: "Error", description: "No se pudo identificar el objeto." }; showModalContent(identifyModal, content); buttons.identify.disabled = false; }
+            async function getDesignAdvice() { openModal(designModal); buttons.design.disabled = true; const payload = { contents: [{ parts: [{ text: "Act as an expert interior designer. Analyze the room in this image and provide three actionable suggestions to improve its aesthetics, layout, or functionality. Be creative and specific. Respond in Spanish and format the response with a title and a numbered list of suggestions." }, { inlineData: { mimeType: "image/jpeg", data: captureFrameAsBase64() } }] }] }; const result = await callGeminiAPI({ endpoint: 'generateContent', payload }); const advice = result?.candidates?.[0]?.content?.parts?.[0]?.text || "No se pudo obtener consejo de diseño."; showModalContent(designModal, advice); buttons.design.disabled = false; }
+            async function extractColorPalette() { openModal(colorPaletteModal); buttons.colorPalette.disabled = true; const payload = { contents: [{ parts: [{ text: "Act as a color expert. Analyze this image and identify the 5 most representative colors. Respond with a JSON array of objects, where each object has a 'name' (a common name for the color in English) and a 'hex' key (the color's hex code)." }, { inlineData: { mimeType: "image/jpeg", data: captureFrameAsBase64() } }] }], generationConfig: { responseMimeType: "application/json", responseSchema: { type: "ARRAY", items: { type: "OBJECT", properties: { "name": { "type": "STRING" }, "hex": { "type": "STRING" } }, required: ["name", "hex"] } } } }; const result = await callGeminiAPI({ endpoint: 'generateContent', payload }); const jsonText = result?.candidates?.[0]?.content?.parts?.[0]?.text; const colors = jsonText ? JSON.parse(jsonText) : null; showColorPalette(colors); buttons.colorPalette.disabled = false; }
+            async function translateText() {
+                openModal(translateModal); buttons.translate.disabled = true;
+                const payload = {
+                    contents: [{ parts: [{ text: "Analyze the image to find any text. Identify the language of the text and translate it to Spanish. If no text is found, the detected language should be 'none' and the translation should state that no text was found, in Spanish." }, { inlineData: { mimeType: "image/jpeg", data: captureFrameAsBase64() } }] }],
+                    generationConfig: { responseMimeType: "application/json", responseSchema: { type: "OBJECT", properties: { "detectedLanguage": { "type": "STRING" }, "translation": { "type": "STRING" } }, required: ["detectedLanguage", "translation"] } }
+                };
+                const result = await callGeminiAPI({ endpoint: 'generateContent', payload });
+                const jsonText = result?.candidates?.[0]?.content?.parts?.[0]?.text;
+                const content = jsonText ? JSON.parse(jsonText) : { detectedLanguage: "error", translation: "No se pudo procesar la traducción." };
+                showTranslation(content);
+                buttons.translate.disabled = false;
+            }
+
+            function openModal(modal) { modal.container.classList.remove('opacity-0', 'pointer-events-none'); modal.container.firstElementChild.classList.remove('scale-95'); modal.loader.style.display = 'block'; modal.display.style.display = 'none'; }
+            function showModalContent(modal, content) { if (modal.title) { modal.title.textContent = content.title; modal.text.textContent = content.description; } else { modal.text.textContent = content; } modal.loader.style.display = 'none'; modal.display.style.display = 'block'; }
+            function showColorPalette(colors) { const modal = colorPaletteModal; const container = modal.paletteContainer; container.innerHTML = ''; if (Array.isArray(colors)) { colors.forEach(color => { const swatchHTML = `<div class="flex items-center gap-4 p-3 rounded-lg bg-gray-700/50"><div class="w-12 h-12 rounded-md border-2 border-gray-500 shadow-inner" style="background-color: ${color.hex};"></div><div class="text-left"><p class="font-semibold text-white">${color.name}</p><p class="text-gray-400 font-mono text-sm">${color.hex}</p></div></div>`; container.innerHTML += swatchHTML; }); } else { container.innerHTML = `<p class="text-gray-400">No se pudo generar la paleta de colores.</p>`; } modal.loader.style.display = 'none'; modal.display.style.display = 'block'; }
+            function showTranslation(content) { const modal = translateModal; modal.detectedLanguage.textContent = content.detectedLanguage; modal.text.textContent = content.translation; modal.loader.style.display = 'none'; modal.display.style.display = 'block'; }
+            function closeModal(modal) { modal.container.classList.add('opacity-0', 'pointer-events-none'); modal.container.firstElementChild.classList.add('scale-95'); }
+            function base64ToArrayBuffer(b64) { const bin = window.atob(b64); const len = bin.length; const bytes = new Uint8Array(len); for (let i = 0; i < len; i++) { bytes[i] = bin.charCodeAt(i); } return bytes.buffer; }
+            function pcmToWav(pcm, sampleRate) { const b = new ArrayBuffer(44 + pcm.byteLength); const v = new DataView(b); const s = (s,o,v) => { for (let i=0;i<s.length;i++,o++) v.setUint8(o,s.charCodeAt(i)); }; s('RIFF',0,v); v.setUint32(4,36+pcm.byteLength,true); s('WAVE',8,v); s('fmt ',12,v); v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,1,true); v.setUint32(24,sampleRate,true); v.setUint32(28,sampleRate*2,true); v.setUint16(32,2,true); v.setUint16(34,16,true); s('data',36,v); v.setUint32(40,pcm.byteLength,true); new Int16Array(b,44).set(pcm); return new Blob([b],{type:'audio/wav'}); }
+            
+            buttons.toggle.addEventListener('click', () => { effectEnabled = !effectEnabled; buttons.toggle.textContent = effectEnabled ? 'Efecto Activado' : 'Efecto Anaglifo'; buttons.toggle.classList.toggle('bg-blue-600'); buttons.toggle.classList.toggle('bg-red-600'); });
+            buttons.describe.addEventListener('click', describeScene);
+            buttons.transform.addEventListener('click', transformStyle);
+            buttons.story.addEventListener('click', createStory);
+            buttons.recipe.addEventListener('click', suggestRecipe);
+            buttons.identify.addEventListener('click', identifyObject);
+            buttons.design.addEventListener('click', getDesignAdvice);
+            buttons.colorPalette.addEventListener('click', extractColorPalette);
+            buttons.translate.addEventListener('click', translateText);
+            
+            storyModal.closeButton.addEventListener('click', () => closeModal(storyModal));
+            recipeModal.closeButton.addEventListener('click', () => closeModal(recipeModal));
+            identifyModal.closeButton.addEventListener('click', () => closeModal(identifyModal));
+            designModal.closeButton.addEventListener('click', () => closeModal(designModal));
+            colorPaletteModal.closeButton.addEventListener('click', () => closeModal(colorPaletteModal));
+            translateModal.closeButton.addEventListener('click', () => closeModal(translateModal));
+            
+            video.addEventListener('canplay', () => { if (!animationFrameId) drawFrame(); });
+            setupCamera();
+        });
+    </script>
+</body>
+</html>
+
