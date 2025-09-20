@@ -10,6 +10,7 @@
     <style>
         body {
             font-family: 'Inter', sans-serif;
+            overscroll-behavior-y: contain; /* Evita el rebote de la página al hacer scroll */
         }
         #video-source {
             display: none;
@@ -26,62 +27,75 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-        /* Estilo para scrollbar en modales */
-        .modal-scrollbar::-webkit-scrollbar {
+        /* Estilo para scrollbar en modales y barra de botones */
+        .modal-scrollbar::-webkit-scrollbar, .button-scrollbar::-webkit-scrollbar {
             width: 8px;
+            height: 6px;
         }
-        .modal-scrollbar::-webkit-scrollbar-track {
+        .modal-scrollbar::-webkit-scrollbar-track, .button-scrollbar::-webkit-scrollbar-track {
             background: #2d3748; /* gray-800 */
         }
-        .modal-scrollbar::-webkit-scrollbar-thumb {
+        .modal-scrollbar::-webkit-scrollbar-thumb, .button-scrollbar::-webkit-scrollbar-thumb {
             background: #4a5568; /* gray-600 */
             border-radius: 4px;
         }
-        .modal-scrollbar::-webkit-scrollbar-thumb:hover {
+        .modal-scrollbar::-webkit-scrollbar-thumb:hover, .button-scrollbar::-webkit-scrollbar-thumb:hover {
             background: #718096; /* gray-500 */
         }
     </style>
 </head>
-<body class="bg-gray-900 text-white flex flex-col items-center justify-center min-h-screen p-4 antialiased">
+<body class="bg-gray-900 text-white flex flex-col h-screen antialiased">
 
-    <div class="w-full max-w-7xl text-center">
-        <h1 class="text-4xl md:text-5xl font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-cyan-300">Cámara Mágica con Gemini</h1>
-        <p class="text-gray-400 mb-6">La IA que ve, traduce, transforma, habla, imagina, cocina, identifica, asesora y extrae colores de tu mundo.</p>
+    <div class="w-full max-w-7xl mx-auto flex flex-col h-full">
+        <!-- Encabezado -->
+        <header class="text-center p-4 flex-shrink-0">
+            <h1 class="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-cyan-300">Cámara Mágica</h1>
+            <p class="text-gray-400 text-sm">Toca una función para interactuar con tu mundo</p>
+        </header>
 
-        <!-- Contenedor para la visualización de la cámara -->
-        <div class="relative w-full aspect-video bg-black rounded-xl shadow-2xl overflow-hidden border-2 border-gray-700">
-            <canvas id="canvas-display" class="w-full h-full"></canvas>
-            <p id="loading-message" class="absolute inset-0 flex items-center justify-center text-lg">Iniciando cámara...</p>
-            
-            <div id="gemini-response-container" class="absolute bottom-0 left-0 right-0 bg-black bg-opacity-70 p-4 text-center text-lg backdrop-blur-sm transition-opacity duration-500 opacity-0 pointer-events-none">
-                <div id="gemini-text-loader" class="loader mx-auto hidden"></div>
-                <p id="gemini-response-text"></p>
+        <!-- Contenedor Principal de la Cámara (crece para ocupar el espacio) -->
+        <main class="relative flex-grow min-h-0">
+            <div class="relative w-full h-full bg-black rounded-xl shadow-2xl overflow-hidden border-2 border-gray-700">
+                <canvas id="canvas-display" class="w-full h-full object-cover"></canvas>
+                <p id="loading-message" class="absolute inset-0 flex items-center justify-center text-lg">Iniciando cámara...</p>
+                
+                <div id="gemini-response-container" class="absolute bottom-0 left-0 right-0 bg-black bg-opacity-70 p-4 text-center text-lg backdrop-blur-sm transition-opacity duration-500 opacity-0 pointer-events-none">
+                    <div id="gemini-text-loader" class="loader mx-auto hidden"></div>
+                    <p id="gemini-response-text"></p>
+                </div>
+                
+                <div id="gemini-image-container" class="absolute inset-0 bg-black bg-opacity-80 flex items-center justify-center transition-opacity duration-500 opacity-0 pointer-events-none">
+                    <div id="gemini-image-loader" class="loader hidden"></div>
+                    <img id="gemini-generated-image" class="max-w-full max-h-full rounded-lg shadow-lg" src="" alt="Imagen Generada por IA">
+                </div>
             </div>
-            
-            <div id="gemini-image-container" class="absolute inset-0 bg-black bg-opacity-80 flex items-center justify-center transition-opacity duration-500 opacity-0 pointer-events-none">
-                <div id="gemini-image-loader" class="loader hidden"></div>
-                <img id="gemini-generated-image" class="max-w-full max-h-full rounded-lg shadow-lg" src="" alt="Imagen Generada por IA">
-            </div>
-        </div>
+        </main>
 
-        <!-- Controles -->
-        <div class="mt-6 flex flex-wrap justify-center items-center gap-3">
-            <button id="toggle-button" class="bg-blue-600 text-white font-semibold px-5 py-2.5 rounded-lg shadow-lg hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-500/50 transition-all duration-300 ease-in-out transform hover:scale-105">Efecto Anaglifo</button>
-            <button id="describe-button" class="bg-purple-600 text-white font-semibold px-5 py-2.5 rounded-lg shadow-lg hover:bg-purple-700 focus:outline-none focus:ring-4 focus:ring-purple-500/50 transition-all duration-300 ease-in-out transform hover:scale-105">🔊 Describir</button>
-            <button id="transform-button" class="bg-teal-600 text-white font-semibold px-5 py-2.5 rounded-lg shadow-lg hover:bg-teal-700 focus:outline-none focus:ring-4 focus:ring-teal-500/50 transition-all duration-300 ease-in-out transform hover:scale-105">🎨 Transformar</button>
-            <button id="story-button" class="bg-amber-600 text-white font-semibold px-5 py-2.5 rounded-lg shadow-lg hover:bg-amber-700 focus:outline-none focus:ring-4 focus:ring-amber-500/50 transition-all duration-300 ease-in-out transform hover:scale-105">✍️ Crear Historia</button>
-            <button id="recipe-button" class="bg-green-600 text-white font-semibold px-5 py-2.5 rounded-lg shadow-lg hover:bg-green-700 focus:outline-none focus:ring-4 focus:ring-green-500/50 transition-all duration-300 ease-in-out transform hover:scale-105">🍲 Receta</button>
-            <button id="identify-button" class="bg-slate-600 text-white font-semibold px-5 py-2.5 rounded-lg shadow-lg hover:bg-slate-700 focus:outline-none focus:ring-4 focus:ring-slate-500/50 transition-all duration-300 ease-in-out transform hover:scale-105">🔍 Identificar</button>
-            <button id="design-button" class="bg-pink-600 text-white font-semibold px-5 py-2.5 rounded-lg shadow-lg hover:bg-pink-700 focus:outline-none focus:ring-4 focus:ring-pink-500/50 transition-all duration-300 ease-in-out transform hover:scale-105">🏡 Asesorar</button>
-            <button id="color-palette-button" class="bg-orange-600 text-white font-semibold px-5 py-2.5 rounded-lg shadow-lg hover:bg-orange-700 focus:outline-none focus:ring-4 focus:ring-orange-500/50 transition-all duration-300 ease-in-out transform hover:scale-105">🌈 Extraer Colores</button>
-            <button id="translate-button" class="bg-red-600 text-white font-semibold px-5 py-2.5 rounded-lg shadow-lg hover:bg-red-700 focus:outline-none focus:ring-4 focus:ring-red-500/50 transition-all duration-300 ease-in-out transform hover:scale-105">🌐 Traducir Texto</button>
-        </div>
+        <!-- Controles Deslizables -->
+        <footer class="flex-shrink-0 w-full p-4">
+            <div class="flex items-center space-x-3 overflow-x-auto pb-3 button-scrollbar">
+                <button id="switch-camera-button" class="bg-gray-700 text-white font-semibold px-4 py-2.5 rounded-lg shadow-lg hover:bg-gray-600 focus:outline-none focus:ring-4 focus:ring-gray-500/50 transition-all duration-300 ease-in-out transform hover:scale-105 flex-shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h5M20 20v-5h-5M4 20h5v-5M20 4h-5v5M15 4h5v5M4 9V4h5" transform="rotate(90 12 12)"/>
+                    </svg>
+                </button>
+                <button id="toggle-button" class="bg-blue-600 text-white font-semibold px-5 py-2.5 rounded-lg shadow-lg hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-500/50 transition-all duration-300 ease-in-out transform hover:scale-105 flex-shrink-0 whitespace-nowrap">Efecto Anaglifo</button>
+                <button id="describe-button" class="bg-purple-600 text-white font-semibold px-5 py-2.5 rounded-lg shadow-lg hover:bg-purple-700 focus:outline-none focus:ring-4 focus:ring-purple-500/50 transition-all duration-300 ease-in-out transform hover:scale-105 flex-shrink-0 whitespace-nowrap">🔊 Describir</button>
+                <button id="transform-button" class="bg-teal-600 text-white font-semibold px-5 py-2.5 rounded-lg shadow-lg hover:bg-teal-700 focus:outline-none focus:ring-4 focus:ring-teal-500/50 transition-all duration-300 ease-in-out transform hover:scale-105 flex-shrink-0 whitespace-nowrap">🎨 Transformar</button>
+                <button id="story-button" class="bg-amber-600 text-white font-semibold px-5 py-2.5 rounded-lg shadow-lg hover:bg-amber-700 focus:outline-none focus:ring-4 focus:ring-amber-500/50 transition-all duration-300 ease-in-out transform hover:scale-105 flex-shrink-0 whitespace-nowrap">✍️ Crear Historia</button>
+                <button id="recipe-button" class="bg-green-600 text-white font-semibold px-5 py-2.5 rounded-lg shadow-lg hover:bg-green-700 focus:outline-none focus:ring-4 focus:ring-green-500/50 transition-all duration-300 ease-in-out transform hover:scale-105 flex-shrink-0 whitespace-nowrap">🍲 Receta</button>
+                <button id="identify-button" class="bg-slate-600 text-white font-semibold px-5 py-2.5 rounded-lg shadow-lg hover:bg-slate-700 focus:outline-none focus:ring-4 focus:ring-slate-500/50 transition-all duration-300 ease-in-out transform hover:scale-105 flex-shrink-0 whitespace-nowrap">🔍 Identificar</button>
+                <button id="design-button" class="bg-pink-600 text-white font-semibold px-5 py-2.5 rounded-lg shadow-lg hover:bg-pink-700 focus:outline-none focus:ring-4 focus:ring-pink-500/50 transition-all duration-300 ease-in-out transform hover:scale-105 flex-shrink-0 whitespace-nowrap">🏡 Asesorar</button>
+                <button id="color-palette-button" class="bg-orange-600 text-white font-semibold px-5 py-2.5 rounded-lg shadow-lg hover:bg-orange-700 focus:outline-none focus:ring-4 focus:ring-orange-500/50 transition-all duration-300 ease-in-out transform hover:scale-105 flex-shrink-0 whitespace-nowrap">🌈 Colores</button>
+                <button id="translate-button" class="bg-red-600 text-white font-semibold px-5 py-2.5 rounded-lg shadow-lg hover:bg-red-700 focus:outline-none focus:ring-4 focus:ring-red-500/50 transition-all duration-300 ease-in-out transform hover:scale-105 flex-shrink-0 whitespace-nowrap">🌐 Traducir</button>
+            </div>
+        </footer>
     </div>
 
     <video id="video-source" playsinline autoplay></video>
     <audio id="tts-audio" class="hidden"></audio>
 
-    <!-- Modales -->
+    <!-- Modales (sin cambios estructurales) -->
     <div id="story-modal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50 transition-opacity duration-300 opacity-0 pointer-events-none">
         <div class="bg-gray-800 rounded-xl shadow-2xl w-full max-w-2xl p-6 relative transform scale-95 transition-all duration-300">
             <div id="story-loader" class="loader mx-auto"></div>
@@ -155,6 +169,7 @@
             const audioPlayer = document.getElementById('tts-audio');
             
             const buttons = {
+                switchCamera: document.getElementById('switch-camera-button'),
                 toggle: document.getElementById('toggle-button'),
                 describe: document.getElementById('describe-button'),
                 transform: document.getElementById('transform-button'),
@@ -182,11 +197,45 @@
 
             let effectEnabled = false;
             let animationFrameId;
+            let currentStream = null;
+            let currentFacingMode = 'user'; // 'user' para frontal, 'environment' para trasera
 
-            async function setupCamera() { try { const stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' }, audio: false }); video.srcObject = stream; loadingMessage.style.display = 'none'; } catch (err) { console.error("Error al acceder a la cámara: ", err); loadingMessage.textContent = "Error al acceder a la cámara. Revisa los permisos."; } }
-            function drawFrame() { if (video.paused || video.ended || canvas.width === 0) return; if (canvas.width !== video.videoWidth) { canvas.width = video.videoWidth; canvas.height = video.videoHeight; } ctx.save(); effectEnabled ? applyAnaglyphEffect() : ctx.drawImage(video, 0, 0, canvas.width, canvas.height); ctx.restore(); animationFrameId = requestAnimationFrame(drawFrame); }
+            async function setupCamera(facingMode = 'user') {
+                if (currentStream) {
+                    currentStream.getTracks().forEach(track => track.stop());
+                }
+                const constraints = { video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: facingMode }, audio: false };
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                    video.srcObject = stream;
+                    currentStream = stream;
+                    currentFacingMode = facingMode;
+                    loadingMessage.style.display = 'none';
+                } catch (err) {
+                    console.error("Error al acceder a la cámara: ", err);
+                    loadingMessage.textContent = "Error al acceder a la cámara. Revisa los permisos.";
+                }
+            }
+
+            function switchCamera() {
+                const newFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
+                setupCamera(newFacingMode);
+            }
+
+            function drawFrame() { if (video.paused || video.ended) return; if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) { canvas.width = video.videoWidth; canvas.height = video.videoHeight; } ctx.save(); if (currentFacingMode === 'user') { ctx.translate(video.videoWidth, 0); ctx.scale(-1, 1); } effectEnabled ? applyAnaglyphEffect() : ctx.drawImage(video, 0, 0, canvas.width, canvas.height); ctx.restore(); animationFrameId = requestAnimationFrame(drawFrame); }
             function applyAnaglyphEffect() { const width = canvas.width, height = canvas.height, offset = 8; ctx.drawImage(video, 0, 0, width, height); const imageData = ctx.getImageData(0, 0, width, height); const data = imageData.data; const redData = new Uint8ClampedArray(data); for (let i = 0; i < data.length; i += 4) { data[i] = 0; redData[i + 1] = 0; redData[i + 2] = 0; } ctx.clearRect(0, 0, width, height); ctx.putImageData(new ImageData(data, width, height), -offset, 0); ctx.globalCompositeOperation = 'lighter'; ctx.putImageData(new ImageData(redData, width, height), offset, 0); }
-            function captureFrameAsBase64() { ctx.drawImage(video, 0, 0, canvas.width, canvas.height); return canvas.toDataURL('image/jpeg').split(',')[1]; }
+            function captureFrameAsBase64() {
+                const tempCanvas = document.createElement('canvas');
+                const tempCtx = tempCanvas.getContext('2d');
+                tempCanvas.width = video.videoWidth;
+                tempCanvas.height = video.videoHeight;
+                if (currentFacingMode === 'user') {
+                    tempCtx.translate(video.videoWidth, 0);
+                    tempCtx.scale(-1, 1);
+                }
+                tempCtx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
+                return tempCanvas.toDataURL('image/jpeg').split(',')[1];
+            }
             async function callGeminiAPI({ endpoint, payload, model = 'gemini-2.5-flash-preview-05-20' }) { 
                 const apiKey = "AIzaSyD-QNU4sHVrk_BSyeaCphoc4-LJ2o2a3U8"; 
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:${endpoint}?key=${apiKey}`; 
@@ -233,6 +282,7 @@
             function base64ToArrayBuffer(b64) { const bin = window.atob(b64); const len = bin.length; const bytes = new Uint8Array(len); for (let i = 0; i < len; i++) { bytes[i] = bin.charCodeAt(i); } return bytes.buffer; }
             function pcmToWav(pcm, sampleRate) { const b = new ArrayBuffer(44 + pcm.byteLength); const v = new DataView(b); const s = (s,o,v) => { for (let i=0;i<s.length;i++,o++) v.setUint8(o,s.charCodeAt(i)); }; s('RIFF',0,v); v.setUint32(4,36+pcm.byteLength,true); s('WAVE',8,v); s('fmt ',12,v); v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,1,true); v.setUint32(24,sampleRate,true); v.setUint32(28,sampleRate*2,true); v.setUint16(32,2,true); v.setUint16(34,16,true); s('data',36,v); v.setUint32(40,pcm.byteLength,true); new Int16Array(b,44).set(pcm); return new Blob([b],{type:'audio/wav'}); }
             
+            buttons.switchCamera.addEventListener('click', switchCamera);
             buttons.toggle.addEventListener('click', () => { effectEnabled = !effectEnabled; buttons.toggle.textContent = effectEnabled ? 'Efecto Activado' : 'Efecto Anaglifo'; buttons.toggle.classList.toggle('bg-blue-600'); buttons.toggle.classList.toggle('bg-red-600'); });
             buttons.describe.addEventListener('click', describeScene);
             buttons.transform.addEventListener('click', transformStyle);
@@ -250,8 +300,8 @@
             colorPaletteModal.closeButton.addEventListener('click', () => closeModal(colorPaletteModal));
             translateModal.closeButton.addEventListener('click', () => closeModal(translateModal));
             
-            video.addEventListener('canplay', () => { if (!animationFrameId) drawFrame(); });
-            setupCamera();
+            video.addEventListener('canplay', () => { if (!animationFrameId) { animationFrameId = requestAnimationFrame(drawFrame); } });
+            setupCamera(currentFacingMode);
         });
     </script>
 </body>
