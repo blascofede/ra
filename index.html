@@ -57,7 +57,9 @@
         <main class="relative flex-grow min-h-0">
             <div class="relative w-full h-full bg-black rounded-xl shadow-2xl overflow-hidden border-2 border-gray-700">
                 <canvas id="canvas-display" class="w-full h-full object-cover"></canvas>
-                <p id="loading-message" class="absolute inset-0 flex items-center justify-center text-lg p-4 text-center"></p>
+                <div id="loading-overlay" class="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 transition-opacity duration-300 opacity-0 pointer-events-none">
+                    <p id="loading-message" class="text-lg p-4 text-center"></p>
+                </div>
                 
                 <div id="gemini-response-container" class="absolute bottom-0 left-0 right-0 bg-black bg-opacity-70 p-4 text-center text-lg backdrop-blur-sm transition-opacity duration-500 opacity-0 pointer-events-none">
                     <div id="gemini-text-loader" class="loader mx-auto hidden"></div>
@@ -194,6 +196,7 @@
             const startErrorMessage = document.getElementById('start-error-message');
             const appContainer = document.getElementById('app-container');
 
+            const loadingOverlay = document.getElementById('loading-overlay');
             const loadingMessage = document.getElementById('loading-message');
             const audioPlayer = document.getElementById('tts-audio');
             
@@ -233,12 +236,23 @@
             let currentDeviceIndex = 0;
 
             async function startCamera(constraints) {
+                // Detener cualquier stream anterior ANTES de pedir uno nuevo
                 if (currentStream) {
                     currentStream.getTracks().forEach(track => track.stop());
                 }
+                video.srcObject = null;
+
                 const stream = await navigator.mediaDevices.getUserMedia(constraints);
                 video.srcObject = stream;
                 currentStream = stream;
+
+                return new Promise((resolve, reject) => {
+                    const timeout = setTimeout(() => reject(new Error("La cámara no empezó a reproducir a tiempo.")), 5000);
+                    video.onplaying = () => {
+                        clearTimeout(timeout);
+                        resolve();
+                    };
+                });
             }
 
             async function initializeCameraSystem() {
@@ -292,6 +306,9 @@
                 if (videoDevices.length <= 1) return;
                 
                 buttons.switchCamera.disabled = true;
+                loadingOverlay.classList.remove('opacity-0');
+                loadingMessage.textContent = "Cambiando cámara...";
+
                 const lastWorkingIndex = currentDeviceIndex;
                 currentDeviceIndex = (currentDeviceIndex + 1) % videoDevices.length;
                 const newDeviceId = videoDevices[currentDeviceIndex].deviceId;
@@ -316,6 +333,7 @@
                         appContainer.style.display = 'none';
                     }
                 } finally {
+                    loadingOverlay.classList.add('opacity-0');
                     buttons.switchCamera.disabled = false;
                 }
             }
@@ -459,10 +477,12 @@
             colorPaletteModal.closeButton.addEventListener('click', () => closeModal(colorPaletteModal));
             translateModal.closeButton.addEventListener('click', () => closeModal(translateModal));
             
-            video.addEventListener('canplay', () => { 
-                if (!animationFrameId) { 
-                    animationFrameId = requestAnimationFrame(drawFrame); 
-                } 
+            video.addEventListener('playing', () => { 
+                loadingOverlay.classList.add('opacity-0');
+                if (animationFrameId) {
+                    cancelAnimationFrame(animationFrameId);
+                }
+                animationFrameId = requestAnimationFrame(drawFrame); 
             });
             
         });
