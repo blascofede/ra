@@ -74,7 +74,7 @@
         <!-- Controles Deslizables -->
         <footer class="flex-shrink-0 w-full p-4">
             <div class="flex items-center space-x-3 overflow-x-auto pb-3 button-scrollbar">
-                <button id="switch-camera-button" class="bg-gray-700 text-white font-semibold px-4 py-2.5 rounded-lg shadow-lg hover:bg-gray-600 focus:outline-none focus:ring-4 focus:ring-gray-500/50 transition-all duration-300 ease-in-out transform hover:scale-105 flex-shrink-0">
+                <button id="switch-camera-button" class="bg-gray-700 text-white font-semibold px-4 py-2.5 rounded-lg shadow-lg hover:bg-gray-600 focus:outline-none focus:ring-4 focus:ring-gray-500/50 transition-all duration-300 ease-in-out transform hover:scale-105 flex-shrink-0" disabled>
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h5M20 20v-5h-5M4 20h5v-5M20 4h-5v5M15 4h5v5M4 9V4h5" transform="rotate(90 12 12)"/>
                     </svg>
@@ -252,25 +252,25 @@
                     startButton.textContent = "Iniciando...";
                     startErrorMessage.textContent = "";
 
-                    const initialConstraints = { video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } } };
+                    // Solicitud genérica inicial, la más compatible.
+                    const initialConstraints = { video: true };
                     await startCamera(initialConstraints);
 
-                    startScreen.style.display = 'none';
-                    appContainer.style.display = 'flex';
-
+                    // Si tuvo éxito, ahora sí buscamos la lista de cámaras.
                     const devices = await navigator.mediaDevices.enumerateDevices();
                     videoDevices = devices.filter(device => device.kind === 'videoinput');
 
                     if (videoDevices.length > 1) {
                          buttons.switchCamera.disabled = false;
-                    } else {
-                         buttons.switchCamera.disabled = true;
                     }
                     
                     const currentTrack = currentStream.getVideoTracks()[0];
                     const currentSettings = currentTrack.getSettings();
                     currentDeviceIndex = videoDevices.findIndex(device => device.deviceId === currentSettings.deviceId);
                     if(currentDeviceIndex === -1) currentDeviceIndex = 0;
+
+                    startScreen.style.display = 'none';
+                    appContainer.style.display = 'flex';
 
 
                 } catch (err) {
@@ -309,7 +309,7 @@
                 const track = currentStream.getVideoTracks()[0];
                 const settings = track ? track.getSettings() : {};
                 
-                if (settings.facingMode === 'user') {
+                if (settings.facingMode === 'user' || (videoDevices[currentDeviceIndex] && videoDevices[currentDeviceIndex].label.toLowerCase().includes('front'))) {
                     ctx.translate(video.videoWidth, 0); 
                     ctx.scale(-1, 1); 
                 }
@@ -329,7 +329,7 @@
                 const track = currentStream.getVideoTracks()[0];
                 const settings = track ? track.getSettings() : {};
 
-                if (settings.facingMode === 'user') {
+                if (settings.facingMode === 'user' || (videoDevices[currentDeviceIndex] && videoDevices[currentDeviceIndex].label.toLowerCase().includes('front'))) {
                     tempCtx.translate(video.videoWidth, 0);
                     tempCtx.scale(-1, 1);
                 }
