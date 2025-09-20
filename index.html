@@ -46,7 +46,7 @@
 </head>
 <body class="bg-gray-900 text-white flex flex-col h-screen antialiased">
 
-    <div class="w-full max-w-7xl mx-auto flex flex-col h-full">
+    <div id="app-container" class="w-full max-w-7xl mx-auto flex-col h-full hidden">
         <!-- Encabezado -->
         <header class="text-center p-4 flex-shrink-0">
             <h1 class="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-cyan-300">Cámara Mágica</h1>
@@ -57,7 +57,7 @@
         <main class="relative flex-grow min-h-0">
             <div class="relative w-full h-full bg-black rounded-xl shadow-2xl overflow-hidden border-2 border-gray-700">
                 <canvas id="canvas-display" class="w-full h-full object-cover"></canvas>
-                <p id="loading-message" class="absolute inset-0 flex items-center justify-center text-lg p-4 text-center">Iniciando cámara...</p>
+                <p id="loading-message" class="absolute inset-0 flex items-center justify-center text-lg p-4 text-center"></p>
                 
                 <div id="gemini-response-container" class="absolute bottom-0 left-0 right-0 bg-black bg-opacity-70 p-4 text-center text-lg backdrop-blur-sm transition-opacity duration-500 opacity-0 pointer-events-none">
                     <div id="gemini-text-loader" class="loader mx-auto hidden"></div>
@@ -92,6 +92,17 @@
             </div>
         </footer>
     </div>
+
+    <!-- Pantalla de Inicio -->
+    <div id="start-screen" class="w-full h-full flex flex-col items-center justify-center p-8 text-center">
+        <h1 class="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-cyan-300 mb-4">Cámara Mágica</h1>
+        <p class="text-gray-400 text-lg mb-8">Presiona el botón para iniciar la cámara y darle permiso al navegador.</p>
+        <button id="start-camera-button" class="bg-indigo-600 text-white font-bold py-4 px-8 rounded-lg shadow-lg hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-500/50 transition-all duration-300 ease-in-out transform hover:scale-105 text-xl">
+            Activar Cámara
+        </button>
+        <p id="start-error-message" class="text-red-400 mt-4"></p>
+    </div>
+
 
     <video id="video-source" playsinline autoplay></video>
     <audio id="tts-audio" class="hidden"></audio>
@@ -177,6 +188,12 @@
             const video = document.getElementById('video-source');
             const canvas = document.getElementById('canvas-display');
             const ctx = canvas.getContext('2d', { willReadFrequently: true });
+            
+            const startScreen = document.getElementById('start-screen');
+            const startButton = document.getElementById('start-camera-button');
+            const startErrorMessage = document.getElementById('start-error-message');
+            const appContainer = document.getElementById('app-container');
+
             const loadingMessage = document.getElementById('loading-message');
             const audioPlayer = document.getElementById('tts-audio');
             
@@ -226,22 +243,27 @@
                     loadingMessage.style.display = 'none';
                 } catch (err) {
                     console.error("Error al iniciar stream con constraints:", constraints, err);
-                    throw err; // Re-lanza el error para ser capturado por el inicializador
+                    throw err; 
                 }
             }
 
             async function initializeCameraSystem() {
                 if (!('mediaDevices' in navigator && 'getUserMedia' in navigator.mediaDevices)) {
-                    loadingMessage.textContent = "Tu navegador no soporta el acceso a la cámara.";
+                    startErrorMessage.textContent = "Tu navegador no soporta el acceso a la cámara.";
                     return;
                 }
 
                 try {
-                    // Iniciar con una restricción de modo de cámara genérica, es más fiable.
+                    startButton.disabled = true;
+                    startButton.textContent = "Iniciando...";
+                    startErrorMessage.textContent = "";
+
                     const initialConstraints = { video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } } };
                     await startCamera(initialConstraints);
 
-                    // Ahora que tenemos permiso y un stream, podemos obtener las etiquetas correctas de los dispositivos.
+                    startScreen.style.display = 'none';
+                    appContainer.style.display = 'flex';
+
                     const devices = await navigator.mediaDevices.enumerateDevices();
                     videoDevices = devices.filter(device => device.kind === 'videoinput');
 
@@ -249,7 +271,6 @@
                         throw new Error("No se encontraron dispositivos de video.");
                     }
 
-                    // Sincronizar el currentDeviceIndex con el stream que realmente está corriendo.
                     const currentTrack = currentStream.getVideoTracks()[0];
                     const currentSettings = currentTrack.getSettings();
                     const currentDeviceId = currentSettings.deviceId;
@@ -260,15 +281,17 @@
                     console.error("Error detallado al inicializar:", err.name, err.message);
                     let userMessage = "No se pudo iniciar la cámara. ";
                     if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
-                        userMessage += "Por favor, concede el permiso para usar la cámara.";
+                        userMessage += "Por favor, concede el permiso para usar la cámara en los ajustes de tu navegador.";
                     } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
                         userMessage += "No se encontró ninguna cámara conectada.";
                     } else if (err.name === "NotReadableError" || err.name === "TrackStartError") {
-                        userMessage += "La cámara ya está en uso por otra aplicación.";
+                        userMessage += "La cámara ya está en uso por otra aplicación. Cierra otras apps y vuelve a intentarlo.";
                     } else {
                         userMessage += `Error inesperado: ${err.name}`;
                     }
-                    loadingMessage.textContent = userMessage;
+                    startErrorMessage.textContent = userMessage;
+                    startButton.disabled = false;
+                    startButton.textContent = "Activar Cámara";
                 }
             }
             
@@ -377,6 +400,8 @@
             function base64ToArrayBuffer(b64) { const bin = window.atob(b64); const len = bin.length; const bytes = new Uint8Array(len); for (let i = 0; i < len; i++) { bytes[i] = bin.charCodeAt(i); } return bytes.buffer; }
             function pcmToWav(pcm, sampleRate) { const b = new ArrayBuffer(44 + pcm.byteLength); const v = new DataView(b); const s = (s,o,v) => { for (let i=0;i<s.length;i++,o++) v.setUint8(o,s.charCodeAt(i)); }; s('RIFF',0,v); v.setUint32(4,36+pcm.byteLength,true); s('WAVE',8,v); s('fmt ',12,v); v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,1,true); v.setUint32(24,sampleRate,true); v.setUint32(28,sampleRate*2,true); v.setUint16(32,2,true); v.setUint16(34,16,true); s('data',36,v); v.setUint32(40,pcm.byteLength,true); new Int16Array(b,44).set(pcm); return new Blob([b],{type:'audio/wav'}); }
             
+            startButton.addEventListener('click', initializeCameraSystem);
+
             buttons.switchCamera.addEventListener('click', switchCamera);
             buttons.music.addEventListener('click', recommendMusic);
             buttons.toggle.addEventListener('click', () => { effectEnabled = !effectEnabled; buttons.toggle.textContent = effectEnabled ? 'Efecto Activado' : 'Efecto Anaglifo'; buttons.toggle.classList.toggle('bg-blue-600'); buttons.toggle.classList.toggle('bg-red-600'); });
@@ -399,7 +424,6 @@
             
             video.addEventListener('canplay', () => { if (!animationFrameId) { animationFrameId = requestAnimationFrame(drawFrame); } });
             
-            initializeCameraSystem();
         });
     </script>
 </body>
