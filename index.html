@@ -187,7 +187,23 @@
             function drawFrame() { if (video.paused || video.ended || canvas.width === 0) return; if (canvas.width !== video.videoWidth) { canvas.width = video.videoWidth; canvas.height = video.videoHeight; } ctx.save(); effectEnabled ? applyAnaglyphEffect() : ctx.drawImage(video, 0, 0, canvas.width, canvas.height); ctx.restore(); animationFrameId = requestAnimationFrame(drawFrame); }
             function applyAnaglyphEffect() { const width = canvas.width, height = canvas.height, offset = 8; ctx.drawImage(video, 0, 0, width, height); const imageData = ctx.getImageData(0, 0, width, height); const data = imageData.data; const redData = new Uint8ClampedArray(data); for (let i = 0; i < data.length; i += 4) { data[i] = 0; redData[i + 1] = 0; redData[i + 2] = 0; } ctx.clearRect(0, 0, width, height); ctx.putImageData(new ImageData(data, width, height), -offset, 0); ctx.globalCompositeOperation = 'lighter'; ctx.putImageData(new ImageData(redData, width, height), offset, 0); }
             function captureFrameAsBase64() { ctx.drawImage(video, 0, 0, canvas.width, canvas.height); return canvas.toDataURL('image/jpeg').split(',')[1]; }
-            async function callGeminiAPI({ endpoint, payload, model = 'gemini-2.5-flash-preview-05-20' }) { const apiKey = ""; const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:${endpoint}?key=${apiKey}`; try { const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); if (!response.ok) throw new Error(`Error en la API: ${response.status} ${response.statusText}`); return await response.json(); } catch (error) { console.error(`Error al llamar a la API de Gemini (${model}):`, error); return null; } }
+            async function callGeminiAPI({ endpoint, payload, model = 'gemini-2.5-flash-preview-05-20' }) { 
+                const apiKey = "AIzaSyD-QNU4sHVrk_BSyeaCphoc4-LJ2o2a3U8"; 
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:${endpoint}?key=${apiKey}`; 
+                try { 
+                    const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); 
+                    if (!response.ok) {
+                        const errorBody = await response.json();
+                        console.error("Detalles del error de la API:", errorBody);
+                        throw new Error(`Error en la API: ${response.status} ${response.statusText}. Verifica que tu API Key sea correcta y esté activa.`);
+                    }
+                    return await response.json(); 
+                } catch (error) { 
+                    console.error(`Error al llamar a la API de Gemini (${model}):`, error); 
+                    alert("Hubo un error al conectar con Gemini. Revisa la consola para más detalles y asegúrate de que tu API Key es correcta.");
+                    return null; 
+                } 
+            }
             
             async function describeScene() { geminiTextLoader.style.display = 'block'; geminiText.textContent = ''; geminiContainer.classList.remove('opacity-0'); buttons.describe.disabled = true; const payload = { contents: [{ parts: [{ text: "Describe esta escena de forma breve y creativa en español." }, { inlineData: { mimeType: "image/jpeg", data: captureFrameAsBase64() } }] }] }; const result = await callGeminiAPI({ endpoint: 'generateContent', payload }); const description = result?.candidates?.[0]?.content?.parts?.[0]?.text || "No se pudo obtener una descripción."; geminiText.textContent = description; geminiTextLoader.style.display = 'none'; if (description && !description.startsWith("No se pudo")) { const ttsPayload = { contents: [{ parts: [{ text: description }] }], generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "Aoede" } } } }, model: "gemini-2.5-flash-preview-tts" }; const ttsResult = await callGeminiAPI({ endpoint: 'generateContent', payload: ttsPayload, model: 'gemini-2.5-flash-preview-tts' }); const audioPart = ttsResult?.candidates?.[0]?.content?.parts?.[0]; if (audioPart?.inlineData?.data) { const {data, mimeType} = audioPart.inlineData; const sampleRate = parseInt(mimeType.match(/rate=(\d+)/)[1], 10); const pcmBuffer = base64ToArrayBuffer(data); const pcm16 = new Int16Array(pcmBuffer); const wavBlob = pcmToWav(pcm16, sampleRate); audioPlayer.src = URL.createObjectURL(wavBlob); audioPlayer.play(); } } setTimeout(() => { geminiContainer.classList.add('opacity-0'); buttons.describe.disabled = false; }, 7000); }
             async function transformStyle() { geminiGeneratedImage.src = ""; geminiImageLoader.style.display = 'block'; geminiImageContainer.classList.remove('opacity-0'); buttons.transform.disabled = true; const payload = { contents: [{ parts: [{ text: "Transform this image into a vibrant, colorful, and expressive watercolor painting." }, { inlineData: { mimeType: "image/jpeg", data: captureFrameAsBase64() } }] }], generationConfig: { responseModalities: ['IMAGE'] } }; const result = await callGeminiAPI({ endpoint: 'generateContent', payload, model: 'gemini-2.5-flash-image-preview' }); const imageData = result?.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data; geminiImageLoader.style.display = 'none'; if (imageData) { geminiGeneratedImage.src = `data:image/png;base64,${imageData}`; } else { geminiText.textContent = "No se pudo generar la imagen."; geminiContainer.classList.remove('opacity-0'); } setTimeout(() => { geminiImageContainer.classList.add('opacity-0'); buttons.transform.disabled = false; }, 8000); }
@@ -240,4 +256,5 @@
     </script>
 </body>
 </html>
+
 
