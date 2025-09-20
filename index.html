@@ -252,11 +252,9 @@
                     startButton.textContent = "Iniciando...";
                     startErrorMessage.textContent = "";
 
-                    // Solicitud genérica inicial, la más compatible.
                     const initialConstraints = { video: true };
                     await startCamera(initialConstraints);
 
-                    // Si tuvo éxito, ahora sí buscamos la lista de cámaras.
                     const devices = await navigator.mediaDevices.enumerateDevices();
                     videoDevices = devices.filter(device => device.kind === 'videoinput');
 
@@ -290,14 +288,35 @@
                 }
             }
             
-            function switchCamera() {
-                if (videoDevices.length > 1) {
-                    currentDeviceIndex = (currentDeviceIndex + 1) % videoDevices.length;
-                    const deviceId = videoDevices[currentDeviceIndex].deviceId;
-                    const constraints = { video: { deviceId: { exact: deviceId }, width: { ideal: 1280 }, height: { ideal: 720 } } };
-                    startCamera(constraints).catch(err => {
-                        console.error(`No se pudo cambiar a la cámara ${deviceId}:`, err);
-                    });
+            async function switchCamera() {
+                if (videoDevices.length <= 1) return;
+                
+                buttons.switchCamera.disabled = true;
+                const lastWorkingIndex = currentDeviceIndex;
+                currentDeviceIndex = (currentDeviceIndex + 1) % videoDevices.length;
+                const newDeviceId = videoDevices[currentDeviceIndex].deviceId;
+                const constraints = { video: { deviceId: { exact: newDeviceId }, width: { ideal: 1280 }, height: { ideal: 720 } } };
+
+                try {
+                    await startCamera(constraints);
+                } catch (err) {
+                    console.error(`Fallo al cambiar a la cámara ${newDeviceId}. Volviendo a la anterior.`, err);
+                    showTemporaryMessage("No se pudo activar esta cámara.");
+                    
+                    currentDeviceIndex = lastWorkingIndex;
+                    const oldDeviceId = videoDevices[currentDeviceIndex].deviceId;
+                    const oldConstraints = { video: { deviceId: { exact: oldDeviceId }, width: { ideal: 1280 }, height: { ideal: 720 } } };
+                    
+                    try {
+                        await startCamera(oldConstraints);
+                    } catch (revertErr) {
+                        console.error("Fallo catastrófico al intentar volver a la cámara anterior.", revertErr);
+                        startErrorMessage.textContent = "Error crítico. Por favor, recarga la página.";
+                        startScreen.style.display = 'flex';
+                        appContainer.style.display = 'none';
+                    }
+                } finally {
+                    buttons.switchCamera.disabled = false;
                 }
             }
 
@@ -306,10 +325,18 @@
                 if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) { canvas.width = video.videoWidth; canvas.height = video.videoHeight; } 
                 ctx.save(); 
                 
+                let isFrontCamera = false;
                 const track = currentStream.getVideoTracks()[0];
-                const settings = track ? track.getSettings() : {};
+                if(track){
+                    const settings = track.getSettings();
+                    if (settings.facingMode) {
+                        isFrontCamera = settings.facingMode === 'user';
+                    } else if (videoDevices[currentDeviceIndex]?.label.toLowerCase().includes('front')) {
+                        isFrontCamera = true;
+                    }
+                }
                 
-                if (settings.facingMode === 'user' || (videoDevices[currentDeviceIndex] && videoDevices[currentDeviceIndex].label.toLowerCase().includes('front'))) {
+                if (isFrontCamera) {
                     ctx.translate(video.videoWidth, 0); 
                     ctx.scale(-1, 1); 
                 }
@@ -326,10 +353,18 @@
                 tempCanvas.width = video.videoWidth;
                 tempCanvas.height = video.videoHeight;
 
+                let isFrontCamera = false;
                 const track = currentStream.getVideoTracks()[0];
-                const settings = track ? track.getSettings() : {};
+                if(track){
+                    const settings = track.getSettings();
+                    if (settings.facingMode) {
+                        isFrontCamera = settings.facingMode === 'user';
+                    } else if (videoDevices[currentDeviceIndex]?.label.toLowerCase().includes('front')) {
+                        isFrontCamera = true;
+                    }
+                }
 
-                if (settings.facingMode === 'user' || (videoDevices[currentDeviceIndex] && videoDevices[currentDeviceIndex].label.toLowerCase().includes('front'))) {
+                if (isFrontCamera) {
                     tempCtx.translate(video.videoWidth, 0);
                     tempCtx.scale(-1, 1);
                 }
@@ -352,6 +387,15 @@
                 } 
             }
             
+            function showTemporaryMessage(message) {
+                geminiTextLoader.style.display = 'none';
+                geminiText.textContent = message;
+                geminiContainer.classList.remove('opacity-0');
+                setTimeout(() => {
+                    geminiContainer.classList.add('opacity-0');
+                }, 3000);
+            }
+
             async function recommendMusic() {
                 openModal(musicModal); buttons.music.disabled = true;
                 const payload = {
@@ -365,7 +409,7 @@
                 buttons.music.disabled = false;
             }
             async function describeScene() { geminiTextLoader.style.display = 'block'; geminiText.textContent = ''; geminiContainer.classList.remove('opacity-0'); buttons.describe.disabled = true; const payload = { contents: [{ parts: [{ text: "Describe esta escena de forma breve y creativa en español." }, { inlineData: { mimeType: "image/jpeg", data: captureFrameAsBase64() } }] }] }; const result = await callGeminiAPI({ endpoint: 'generateContent', payload }); const description = result?.candidates?.[0]?.content?.parts?.[0]?.text || "No se pudo obtener una descripción."; geminiText.textContent = description; geminiTextLoader.style.display = 'none'; if (description && !description.startsWith("No se pudo")) { const ttsPayload = { contents: [{ parts: [{ text: description }] }], generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "Aoede" } } } }, model: "gemini-2.5-flash-preview-tts" }; const ttsResult = await callGeminiAPI({ endpoint: 'generateContent', payload: ttsPayload, model: 'gemini-2.5-flash-preview-tts' }); const audioPart = ttsResult?.candidates?.[0]?.content?.parts?.[0]; if (audioPart?.inlineData?.data) { const {data, mimeType} = audioPart.inlineData; const sampleRate = parseInt(mimeType.match(/rate=(\d+)/)[1], 10); const pcmBuffer = base64ToArrayBuffer(data); const pcm16 = new Int16Array(pcmBuffer); const wavBlob = pcmToWav(pcm16, sampleRate); audioPlayer.src = URL.createObjectURL(wavBlob); audioPlayer.play(); } } setTimeout(() => { geminiContainer.classList.add('opacity-0'); buttons.describe.disabled = false; }, 7000); }
-            async function transformStyle() { geminiGeneratedImage.src = ""; geminiImageLoader.style.display = 'block'; geminiImageContainer.classList.remove('opacity-0'); buttons.transform.disabled = true; const payload = { contents: [{ parts: [{ text: "Transform this image into a vibrant, colorful, and expressive watercolor painting." }, { inlineData: { mimeType: "image/jpeg", data: captureFrameAsBase64() } }] }], generationConfig: { responseModalities: ['IMAGE'] } }; const result = await callGeminiAPI({ endpoint: 'generateContent', payload, model: 'gemini-2.5-flash-image-preview' }); const imageData = result?.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data; geminiImageLoader.style.display = 'none'; if (imageData) { geminiGeneratedImage.src = `data:image/png;base64,${imageData}`; } else { geminiText.textContent = "No se pudo generar la imagen."; geminiContainer.classList.remove('opacity-0'); } setTimeout(() => { geminiImageContainer.classList.add('opacity-0'); buttons.transform.disabled = false; }, 8000); }
+            async function transformStyle() { geminiGeneratedImage.src = ""; geminiImageLoader.style.display = 'block'; geminiImageContainer.classList.remove('opacity-0'); buttons.transform.disabled = true; const payload = { contents: [{ parts: [{ text: "Transform this image into a vibrant, colorful, and expressive watercolor painting." }, { inlineData: { mimeType: "image/jpeg", data: captureFrameAsBase64() } }] }], generationConfig: { responseModalities: ['IMAGE'] } }; const result = await callGeminiAPI({ endpoint: 'generateContent', payload, model: 'gemini-2.5-flash-image-preview' }); const imageData = result?.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data; geminiImageLoader.style.display = 'none'; if (imageData) { geminiGeneratedImage.src = `data:image/png;base64,${imageData}`; } else { showTemporaryMessage("No se pudo generar la imagen."); } setTimeout(() => { geminiImageContainer.classList.add('opacity-0'); buttons.transform.disabled = false; }, 8000); }
             async function createStory() { openModal(storyModal); buttons.story.disabled = true; const payload = { contents: [{ parts: [{ text: "Escribe el comienzo de una historia de misterio o fantasía basada en esta imagen, en no más de 150 palabras. La historia debe ser en español, intrigante y creativa." }, { inlineData: { mimeType: "image/jpeg", data: captureFrameAsBase64() } }] }] }; const result = await callGeminiAPI({ endpoint: 'generateContent', payload }); const story = result?.candidates?.[0]?.content?.parts?.[0]?.text || "No se pudo generar una historia."; showModalContent(storyModal, story); buttons.story.disabled = false; }
             async function suggestRecipe() { openModal(recipeModal); buttons.recipe.disabled = true; const payload = { contents: [{ parts: [{ text: "Actúa como un chef. Identifica los ingredientes en la imagen y sugiere una receta simple. Responde en español y formatea la respuesta con un título, ingredientes y pasos." }, { inlineData: { mimeType: "image/jpeg", data: captureFrameAsBase64() } }] }] }; const result = await callGeminiAPI({ endpoint: 'generateContent', payload }); const recipe = result?.candidates?.[0]?.content?.parts?.[0]?.text || "No se pudo generar una receta."; showModalContent(recipeModal, recipe); buttons.recipe.disabled = false; }
             async function identifyObject() { openModal(identifyModal); buttons.identify.disabled = true; const payload = { contents: [{ parts: [{ text: "Identify the main subject in this image. Provide a title (its name) and a short, interesting description. Use your search tool for accuracy. Respond in Spanish." }, { inlineData: { mimeType: "image/jpeg", data: captureFrameAsBase64() } }] }], tools: [{ "google_search": {} }], generationConfig: { responseMimeType: "application/json", responseSchema: { type: "OBJECT", properties: { "title": { "type": "STRING" }, "description": { "type": "STRING" } }, required: ["title", "description"] } } }; const result = await callGeminiAPI({ endpoint: 'generateContent', payload }); const jsonText = result?.candidates?.[0]?.content?.parts?.[0]?.text; const content = jsonText ? JSON.parse(jsonText) : { title: "Error", description: "No se pudo identificar el objeto." }; showModalContent(identifyModal, content); buttons.identify.disabled = false; }
